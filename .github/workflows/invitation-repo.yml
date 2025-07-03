@@ -1,62 +1,25 @@
-name: Issue Creation
+name: Create Issue on Org Member Join
 
 on:
-  schedule:
-    - cron: '*/15 * * * *'  # Every 15 minutes
-  workflow_dispatch:        # Allow manual trigger for testing
+  repository_dispatch:
+    types: [org-member-added]
 
 jobs:
-  create-issues:
+  create-issue:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Fetch current org members
-        run: |
-          curl -s -H "Authorization: token ${{ secrets.ORG_PAT }}" \
-            https://api.github.com/orgs/DevTools-Pooja-CN/members \
-            | jq -r '.[].login' | sort > current-members.txt
-
-      - name: Load previous members list
-        run: |
-          if [ -f previous-members.txt ]; then
-            cat previous-members.txt | sort > previous.txt
-          else
-            touch previous.txt
-          fi
-
-      - name: Find new members
-        id: diff
-        run: |
-          comm -13 previous.txt current-members.txt > new-members.txt
-          echo "new_members=$(paste -sd ',' new-members.txt)" >> $GITHUB_OUTPUT
-
-      - name: Create issues for new members
-        if: steps.diff.outputs.new_members != ''
+      - name: Create GitHub Issue
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.ORG_PAT }}
           script: |
-            const newMembers = "${{ steps.diff.outputs.new_members }}".split(',');
-            for (const user of newMembers) {
-              await github.rest.issues.create({
-                owner: "DevTools-Pooja-CN",
-                repo: "Invitation-repository",
-                title: `New Member Joined: @${user}`,
-                body: **Welcome @${user}**!\n\nYou have successfully joined the organization **DevTools-Pooja-CN**. We're excited to have you onboard! 🚀`
-              });
-            }
-
-      - name: Save current member list
-        run: |
-          mv current-members.txt previous-members.txt
-
-      - name: Commit updated list
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add previous-members.txt
-          git commit -m "Update previous-members.txt" || echo "No changes"
-          git push || echo "No push needed"
+            const title = process.env.ISSUE_TITLE || 'New Member Joined';
+            const body = process.env.ISSUE_BODY || 'No description provided.';
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body
+            });
+        env:
+          ISSUE_TITLE: ${{ github.event.client_payload.title }}
+          ISSUE_BODY: ${{ github.event.client_payload.body }}
