@@ -1,0 +1,14 @@
+name: Issue Creation
+
+on:
+  repository_dispatch:
+    types: [issue_created]
+
+jobs:
+  handle-dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print issue details
+        run: |
+          echo "Title: ${{ github.event.client_payload.title }}"
+          echo "Body: ${{ github.event.client_payload.body }}"
